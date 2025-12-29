@@ -15,8 +15,13 @@ const defaultSettings = Object.freeze({
     enabled: true,
     showNotifications: true,
     restoreProfileAfterGroup: false,
-    defaultProfile: '',
+    fallbackProfile: '',
 });
+
+// Cache for available profiles
+let cachedProfiles = [];
+let profileCacheTime = 0;
+const PROFILE_CACHE_TTL = 30000; // 30 seconds
 
 /**
  * Get or initialize extension settings
@@ -57,7 +62,17 @@ function getCharacterProfile(characterName) {
 }
 
 /**
- * Set the connection profile for a character
+ * Get character index by name
+ * @param {string} characterName - The character's name
+ * @returns {number} Character index or -1 if not found
+ */
+function getCharacterIndexByName(characterName) {
+    const { characters } = SillyTavern.getContext();
+    return characters.findIndex(c => c.name === characterName);
+}
+
+/**
+ * Set the connection profile for a character by index
  * @param {number} characterId - The character's index in the characters array
  * @param {string} profileName - The profile name to assign (empty string to clear)
  */
@@ -81,13 +96,36 @@ async function setCharacterProfile(characterId, profileName) {
     if (settings.showNotifications && profileName) {
         toastr.success(`Profile "${profileName}" assigned to ${characterName}`);
     }
+    
+    // Update any visible UI elements
+    updateGroupMemberProfiles();
+}
+
+/**
+ * Set the connection profile for a character by name
+ * @param {string} characterName - The character's name
+ * @param {string} profileName - The profile name to assign
+ */
+async function setCharacterProfileByName(characterName, profileName) {
+    const charIndex = getCharacterIndexByName(characterName);
+    if (charIndex >= 0) {
+        await setCharacterProfile(charIndex, profileName);
+    }
 }
 
 /**
  * Get list of available connection profiles
+ * @param {boolean} forceRefresh - Force refresh the cache
  * @returns {Promise<string[]>} Array of profile names
  */
-async function getAvailableProfiles() {
+async function getAvailableProfiles(forceRefresh = false) {
+    const now = Date.now();
+    
+    // Return cached if still valid
+    if (!forceRefresh && cachedProfiles.length > 0 && (now - profileCacheTime) < PROFILE_CACHE_TTL) {
+        return cachedProfiles;
+    }
+    
     const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
     
     try {
@@ -98,13 +136,17 @@ async function getAvailableProfiles() {
         
         if (result?.pipe) {
             const profiles = JSON.parse(result.pipe);
-            return Array.isArray(profiles) ? profiles : [];
+            if (Array.isArray(profiles)) {
+                cachedProfiles = profiles;
+                profileCacheTime = now;
+                return profiles;
+            }
         }
     } catch (error) {
         console.error(`[${MODULE_NAME}] Failed to get profile list:`, error);
     }
     
-    return [];
+    return cachedProfiles.length > 0 ? cachedProfiles : [];
 }
 
 /**
@@ -141,7 +183,10 @@ async function switchProfile(profileName) {
     }
     
     try {
-        await executeSlashCommandsWithOptions(`/profile ${profileName}`, {
+        // Quote the profile name to handle spaces and special characters
+        const quotedName = profileName.includes(' ') ? `"${profileName}"` : profileName;
+        
+        await executeSlashCommandsWithOptions(`/profile ${quotedName}`, {
             handleExecutionErrors: false,
             handleParserErrors: false,
         });
@@ -170,16 +215,23 @@ async function onGroupMemberDrafted(data) {
         return;
     }
     
-    const characterName = data?.name || data;
+    // Handle various event data formats
+    const characterName = typeof data === 'string' ? data : (data?.name || data?.charName || data?.character);
     
     if (!characterName) {
-        console.debug(`[${MODULE_NAME}] No character name in event data`);
+        console.debug(`[${MODULE_NAME}] No character name in event data:`, data);
         return;
     }
     
     console.debug(`[${MODULE_NAME}] Group member drafted: ${characterName}`);
     
-    const targetProfile = getCharacterProfile(characterName);
+    // Get character's assigned profile, or fallback
+    let targetProfile = getCharacterProfile(characterName);
+    
+    if (!targetProfile && settings.fallbackProfile) {
+        console.debug(`[${MODULE_NAME}] Using fallback profile for ${characterName}`);
+        targetProfile = settings.fallbackProfile;
+    }
     
     if (!targetProfile) {
         console.debug(`[${MODULE_NAME}] No profile assigned to ${characterName}`);
@@ -221,33 +273,154 @@ async function onChatChanged() {
         await switchProfile(profileBeforeGroupChat);
         profileBeforeGroupChat = '';
     }
+    
+    // Update group member UI if in a group
+    if (groupId) {
+        setTimeout(updateGroupMemberProfiles, 500);
+    }
 }
 
 /**
- * Create the profile selector dropdown for the character editor
- * @returns {Promise<HTMLElement>} The selector container element
+ * Create a profile dropdown for inline use
+ * @param {string} characterName - Character this dropdown is for
+ * @param {string} currentValue - Currently selected profile
+ * @param {string[]} profiles - Available profiles
+ * @returns {HTMLSelectElement}
  */
-async function createProfileSelector() {
+function createInlineProfileSelect(characterName, currentValue, profiles) {
+    const select = document.createElement('select');
+    select.classList.add('mmc-inline-select', 'text_pole');
+    select.dataset.character = characterName;
+    select.title = `Connection profile for ${characterName}`;
+    
+    // Empty option
+    const emptyOpt = document.createElement('option');
+    emptyOpt.value = '';
+    emptyOpt.textContent = '— Default —';
+    select.appendChild(emptyOpt);
+    
+    // Profile options
+    for (const profile of profiles) {
+        const opt = document.createElement('option');
+        opt.value = profile;
+        // Truncate long profile names for display
+        opt.textContent = profile.length > 25 ? profile.substring(0, 22) + '...' : profile;
+        opt.title = profile;
+        select.appendChild(opt);
+    }
+    
+    select.value = currentValue || '';
+    
+    // Handle change
+    select.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        await setCharacterProfileByName(characterName, e.target.value);
+    });
+    
+    // Prevent click from triggering parent elements
+    select.addEventListener('click', (e) => e.stopPropagation());
+    
+    return select;
+}
+
+/**
+ * Add/update profile selectors in the group chat member list
+ */
+async function updateGroupMemberProfiles() {
+    const { groupId, groups } = SillyTavern.getContext();
+    
+    if (!groupId) return;
+    
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+    
+    const profiles = await getAvailableProfiles();
+    
+    // Find the group members container
+    // This selector may need adjustment based on ST version
+    const membersList = document.querySelector('#rm_group_members, .group_member_list, [id*="group_members"]');
+    if (!membersList) {
+        console.debug(`[${MODULE_NAME}] Group members list not found`);
+        return;
+    }
+    
+    // Find each member entry and add/update profile selector
+    const memberEntries = membersList.querySelectorAll('.group_member, [class*="group_member"]');
+    
+    for (const entry of memberEntries) {
+        // Try to get character name from the entry
+        const nameElement = entry.querySelector('.ch_name, .character_name, [class*="name"]');
+        const characterName = nameElement?.textContent?.trim() || entry.dataset?.character;
+        
+        if (!characterName) continue;
+        
+        // Check if we already added a selector
+        let existingSelect = entry.querySelector('.mmc-inline-select');
+        
+        if (existingSelect) {
+            // Update value
+            const currentProfile = getCharacterProfile(characterName) || '';
+            if (existingSelect.value !== currentProfile) {
+                existingSelect.value = currentProfile;
+            }
+        } else {
+            // Create and add selector
+            const currentProfile = getCharacterProfile(characterName) || '';
+            const select = createInlineProfileSelect(characterName, currentProfile, profiles);
+            
+            // Find a good place to insert - after name or at end of entry
+            const insertTarget = entry.querySelector('.ch_name, .character_name') || entry;
+            
+            // Create a wrapper
+            const wrapper = document.createElement('div');
+            wrapper.classList.add('mmc-member-profile');
+            wrapper.appendChild(select);
+            
+            insertTarget.parentNode?.insertBefore(wrapper, insertTarget.nextSibling);
+        }
+    }
+}
+
+/**
+ * Create the profile selector for the character editor panel
+ * @returns {Promise<HTMLElement>}
+ */
+async function createCharacterEditorSelector() {
     const container = document.createElement('div');
-    container.id = 'mmc_profile_selector_container';
-    container.classList.add('mmc-profile-selector');
+    container.id = 'mmc_char_editor_container';
+    container.classList.add('mmc-section');
+    
+    const header = document.createElement('div');
+    header.classList.add('mmc-section-header');
+    header.innerHTML = `
+        <h4>
+            <i class="fa-solid fa-shuffle"></i>
+            <span>Multi-Model Chat</span>
+        </h4>
+    `;
+    
+    const description = document.createElement('small');
+    description.classList.add('mmc-description');
+    description.textContent = 'Select a connection profile for this character to use in group chats.';
+    
+    const selectWrapper = document.createElement('div');
+    selectWrapper.classList.add('mmc-profile-selector');
     
     const label = document.createElement('label');
     label.htmlFor = 'mmc_profile_select';
     label.textContent = 'Connection Profile';
-    label.title = 'Assign a connection profile to use when this character speaks in group chats';
     
     const select = document.createElement('select');
     select.id = 'mmc_profile_select';
-    select.classList.add('text_pole');
+    select.classList.add('text_pole', 'wide100p');
     
-    // Add empty option
+    // Empty option
     const emptyOption = document.createElement('option');
     emptyOption.value = '';
-    emptyOption.textContent = '— Use Default —';
+    emptyOption.textContent = '— Use Default / Fallback —';
     select.appendChild(emptyOption);
     
-    // Load available profiles
+    // Load profiles
     const profiles = await getAvailableProfiles();
     for (const profile of profiles) {
         const option = document.createElement('option');
@@ -256,7 +429,7 @@ async function createProfileSelector() {
         select.appendChild(option);
     }
     
-    // Handle profile selection change
+    // Handle change
     select.addEventListener('change', async (e) => {
         const { characterId } = SillyTavern.getContext();
         if (characterId !== undefined) {
@@ -264,16 +437,20 @@ async function createProfileSelector() {
         }
     });
     
-    container.appendChild(label);
-    container.appendChild(select);
+    selectWrapper.appendChild(label);
+    selectWrapper.appendChild(select);
+    
+    container.appendChild(header);
+    container.appendChild(description);
+    container.appendChild(selectWrapper);
     
     return container;
 }
 
 /**
- * Update the profile selector when character changes
+ * Update the character editor selector with current character's profile
  */
-async function updateProfileSelector() {
+async function updateCharacterEditorSelector() {
     const select = document.getElementById('mmc_profile_select');
     if (!select) return;
     
@@ -290,13 +467,12 @@ async function updateProfileSelector() {
     const character = characters[characterId];
     const currentProfile = character?.data?.extensions?.[EXTENSION_KEY]?.connectionProfile || '';
     
-    // Update options if needed
+    // Refresh profile options
     const profiles = await getAvailableProfiles();
-    const existingValues = Array.from(select.options).map(o => o.value).filter(v => v);
+    const existingValues = new Set(Array.from(select.options).map(o => o.value));
     
-    // Add any new profiles
     for (const profile of profiles) {
-        if (!existingValues.includes(profile)) {
+        if (!existingValues.has(profile)) {
             const option = document.createElement('option');
             option.value = profile;
             option.textContent = profile;
@@ -308,103 +484,151 @@ async function updateProfileSelector() {
 }
 
 /**
- * Inject the profile selector into the character advanced definitions panel
+ * Try to inject the profile selector into the character editor
+ * Uses multiple strategies to find the right injection point
  */
-async function injectProfileSelector() {
-    // Check if already injected
-    if (document.getElementById('mmc_profile_selector_container')) {
-        await updateProfileSelector();
+async function injectCharacterEditorSelector() {
+    // Already injected?
+    if (document.getElementById('mmc_char_editor_container')) {
+        await updateCharacterEditorSelector();
         return;
     }
     
-    // Find the advanced definitions panel
-    // We'll inject after the "Main Prompt Overrides" section
-    const advancedPanel = document.getElementById('character_popup');
-    if (!advancedPanel) {
-        console.debug(`[${MODULE_NAME}] Character popup not found, will retry`);
+    // Strategy 1: Look for the character popup / advanced definitions
+    const injectionTargets = [
+        // Advanced definitions popup
+        () => {
+            const popup = document.getElementById('character_popup');
+            if (!popup || popup.style.display === 'none') return null;
+            
+            // Try to find after prompt overrides section
+            const promptOverrides = popup.querySelector('.prompt_overrides, [class*="prompt_override"]');
+            if (promptOverrides) return { target: promptOverrides, position: 'after' };
+            
+            // Or after post-history instructions
+            const postHistory = popup.querySelector('[name="post_history_instructions"]')?.closest('div');
+            if (postHistory) return { target: postHistory.parentElement, position: 'append' };
+            
+            // Fallback to form_create
+            const formCreate = popup.querySelector('.form_create, form');
+            if (formCreate) return { target: formCreate, position: 'append' };
+            
+            return null;
+        },
+        // Right side character panel
+        () => {
+            const charPanel = document.getElementById('rm_ch_create_block');
+            if (!charPanel) return null;
+            
+            const advancedBtn = charPanel.querySelector('#character_advanced_button');
+            if (advancedBtn) return { target: advancedBtn.parentElement, position: 'after' };
+            
+            return null;
+        },
+        // Any visible character editing form
+        () => {
+            const forms = document.querySelectorAll('[id*="character"][class*="popup"]:not([style*="display: none"]), #character_popup:not([style*="display: none"])');
+            for (const form of forms) {
+                const target = form.querySelector('.form_create, form, .character_edit');
+                if (target) return { target, position: 'append' };
+            }
+            return null;
+        }
+    ];
+    
+    let injectionPoint = null;
+    
+    for (const strategy of injectionTargets) {
+        injectionPoint = strategy();
+        if (injectionPoint) break;
+    }
+    
+    if (!injectionPoint) {
+        console.debug(`[${MODULE_NAME}] No suitable injection point found`);
         return;
     }
     
-    // Find a good injection point - after prompt overrides or at end of form_create block
-    const formCreate = advancedPanel.querySelector('.form_create');
-    if (!formCreate) {
-        console.debug(`[${MODULE_NAME}] Form create block not found`);
-        return;
-    }
+    const selector = await createCharacterEditorSelector();
     
-    // Create and inject the selector
-    const selector = await createProfileSelector();
+    const { target, position } = injectionPoint;
     
-    // Create a wrapper with header like other sections
-    const wrapper = document.createElement('div');
-    wrapper.classList.add('mmc-section');
-    
-    const header = document.createElement('h4');
-    header.innerHTML = '<span data-i18n="Multi-Model Chat">Multi-Model Chat</span>';
-    
-    const description = document.createElement('small');
-    description.classList.add('mmc-description');
-    description.textContent = 'Select a connection profile for this character to use in group chats.';
-    
-    wrapper.appendChild(header);
-    wrapper.appendChild(description);
-    wrapper.appendChild(selector);
-    
-    // Insert at a reasonable position
-    const scenarioOverride = formCreate.querySelector('[name="scenario_override"]')?.closest('div');
-    if (scenarioOverride) {
-        scenarioOverride.after(wrapper);
+    if (position === 'after') {
+        target.after(selector);
+    } else if (position === 'before') {
+        target.before(selector);
     } else {
-        formCreate.appendChild(wrapper);
+        target.appendChild(selector);
     }
     
-    await updateProfileSelector();
+    await updateCharacterEditorSelector();
+    console.log(`[${MODULE_NAME}] Injected character editor selector`);
 }
 
 /**
  * Add settings UI to the extensions panel
  */
 async function addSettingsUI() {
-    const { renderExtensionTemplateAsync, eventSource, event_types } = SillyTavern.getContext();
+    const settings = getSettings();
+    const profiles = await getAvailableProfiles();
     
-    // Create settings HTML
+    // Build profile options for fallback selector
+    let profileOptions = '<option value="">— None —</option>';
+    for (const profile of profiles) {
+        const selected = profile === settings.fallbackProfile ? 'selected' : '';
+        const escaped = profile.replace(/"/g, '&quot;');
+        profileOptions += `<option value="${escaped}" ${selected}>${profile}</option>`;
+    }
+    
     const settingsHtml = `
         <div class="mmc-settings">
             <div class="inline-drawer">
                 <div class="inline-drawer-toggle inline-drawer-header">
-                    <b>Multi-Model Chat</b>
+                    <b><i class="fa-solid fa-shuffle"></i> Multi-Model Chat</b>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
                 <div class="inline-drawer-content">
                     <div class="mmc-settings-content">
                         <label class="checkbox_label">
-                            <input type="checkbox" id="mmc_enabled" />
-                            <span data-i18n="Enable profile switching in group chats">Enable profile switching in group chats</span>
+                            <input type="checkbox" id="mmc_enabled" ${settings.enabled ? 'checked' : ''} />
+                            <span>Enable profile switching in group chats</span>
                         </label>
                         
                         <label class="checkbox_label">
-                            <input type="checkbox" id="mmc_notifications" />
-                            <span data-i18n="Show notifications on profile switch">Show notifications on profile switch</span>
+                            <input type="checkbox" id="mmc_notifications" ${settings.showNotifications ? 'checked' : ''} />
+                            <span>Show notifications on profile switch</span>
                         </label>
                         
                         <label class="checkbox_label">
-                            <input type="checkbox" id="mmc_restore_profile" />
-                            <span data-i18n="Restore original profile after leaving group chat">Restore original profile after leaving group chat</span>
+                            <input type="checkbox" id="mmc_restore_profile" ${settings.restoreProfileAfterGroup ? 'checked' : ''} />
+                            <span>Restore original profile after leaving group chat</span>
                         </label>
+                        
+                        <hr />
+                        
+                        <div class="mmc-setting-row">
+                            <label for="mmc_fallback_profile">
+                                <span>Fallback Profile</span>
+                                <small>Used for characters without an assigned profile</small>
+                            </label>
+                            <select id="mmc_fallback_profile" class="text_pole">
+                                ${profileOptions}
+                            </select>
+                        </div>
                         
                         <hr />
                         
                         <div class="mmc-info">
                             <small>
-                                Assign profiles to characters in their Advanced Definitions panel.
-                                Profiles are switched automatically when a character speaks in a group chat.
+                                <i class="fa-solid fa-info-circle"></i>
+                                Assign profiles to characters in their Advanced Definitions panel,
+                                or directly in the group chat member list.
                             </small>
                         </div>
                         
                         <div class="mmc-buttons">
                             <button id="mmc_refresh_profiles" class="menu_button">
                                 <i class="fa-solid fa-refresh"></i>
-                                <span data-i18n="Refresh Profiles">Refresh Profiles</span>
+                                <span>Refresh Profiles</span>
                             </button>
                         </div>
                     </div>
@@ -413,77 +637,151 @@ async function addSettingsUI() {
         </div>
     `;
     
-    // Add to extensions settings
     const container = document.getElementById('extensions_settings');
-    if (container) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = settingsHtml;
-        container.appendChild(tempDiv.firstElementChild);
-        
-        // Initialize settings UI
-        const settings = getSettings();
-        
-        document.getElementById('mmc_enabled').checked = settings.enabled;
-        document.getElementById('mmc_notifications').checked = settings.showNotifications;
-        document.getElementById('mmc_restore_profile').checked = settings.restoreProfileAfterGroup;
-        
-        // Add event listeners
-        document.getElementById('mmc_enabled').addEventListener('change', (e) => {
-            settings.enabled = e.target.checked;
-            SillyTavern.getContext().saveSettingsDebounced();
-        });
-        
-        document.getElementById('mmc_notifications').addEventListener('change', (e) => {
-            settings.showNotifications = e.target.checked;
-            SillyTavern.getContext().saveSettingsDebounced();
-        });
-        
-        document.getElementById('mmc_restore_profile').addEventListener('change', (e) => {
-            settings.restoreProfileAfterGroup = e.target.checked;
-            SillyTavern.getContext().saveSettingsDebounced();
-        });
-        
-        document.getElementById('mmc_refresh_profiles').addEventListener('click', async () => {
-            await updateProfileSelector();
-            toastr.success('Profile list refreshed');
-        });
+    if (!container) {
+        console.warn(`[${MODULE_NAME}] Extensions settings container not found`);
+        return;
     }
+    
+    // Remove existing if present (for reload)
+    const existing = container.querySelector('.mmc-settings');
+    if (existing) existing.remove();
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = settingsHtml;
+    container.appendChild(tempDiv.firstElementChild);
+    
+    // Event listeners
+    document.getElementById('mmc_enabled').addEventListener('change', (e) => {
+        settings.enabled = e.target.checked;
+        SillyTavern.getContext().saveSettingsDebounced();
+    });
+    
+    document.getElementById('mmc_notifications').addEventListener('change', (e) => {
+        settings.showNotifications = e.target.checked;
+        SillyTavern.getContext().saveSettingsDebounced();
+    });
+    
+    document.getElementById('mmc_restore_profile').addEventListener('change', (e) => {
+        settings.restoreProfileAfterGroup = e.target.checked;
+        SillyTavern.getContext().saveSettingsDebounced();
+    });
+    
+    document.getElementById('mmc_fallback_profile').addEventListener('change', (e) => {
+        settings.fallbackProfile = e.target.value;
+        SillyTavern.getContext().saveSettingsDebounced();
+        if (e.target.value) {
+            toastr.info(`Fallback profile set to "${e.target.value}"`);
+        }
+    });
+    
+    document.getElementById('mmc_refresh_profiles').addEventListener('click', async () => {
+        cachedProfiles = [];
+        const profiles = await getAvailableProfiles(true);
+        
+        // Update fallback selector
+        const fallbackSelect = document.getElementById('mmc_fallback_profile');
+        if (fallbackSelect) {
+            const currentValue = fallbackSelect.value;
+            fallbackSelect.innerHTML = '<option value="">— None —</option>';
+            for (const profile of profiles) {
+                const opt = document.createElement('option');
+                opt.value = profile;
+                opt.textContent = profile;
+                fallbackSelect.appendChild(opt);
+            }
+            fallbackSelect.value = currentValue;
+        }
+        
+        await updateCharacterEditorSelector();
+        await updateGroupMemberProfiles();
+        toastr.success(`Loaded ${profiles.length} profiles`);
+    });
+}
+
+/**
+ * Set up observers to detect when character editor opens
+ */
+function setupObservers() {
+    // Watch for character popup visibility changes
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            // Check for added nodes that might be character panels
+            if (mutation.type === 'childList') {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        if (node.id?.includes('character') || node.classList?.contains('character')) {
+                            setTimeout(injectCharacterEditorSelector, 100);
+                        }
+                    }
+                }
+            }
+            
+            // Check for style/class changes on character popup
+            if (mutation.type === 'attributes') {
+                const target = mutation.target;
+                if (target.id === 'character_popup' || target.id?.includes('character')) {
+                    const isVisible = target.style.display !== 'none' && 
+                                     !target.classList.contains('hidden') &&
+                                     target.offsetParent !== null;
+                    if (isVisible) {
+                        setTimeout(injectCharacterEditorSelector, 100);
+                    }
+                }
+            }
+        }
+    });
+    
+    // Observe the whole document for character panel changes
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class']
+    });
+    
+    // Also watch for group member list changes
+    const groupObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                const target = mutation.target;
+                if (target.id?.includes('group') || target.classList?.contains('group')) {
+                    setTimeout(updateGroupMemberProfiles, 200);
+                }
+            }
+        }
+    });
+    
+    groupObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
 }
 
 /**
  * Initialize the extension
  */
 async function init() {
-    console.log(`[${MODULE_NAME}] Initializing Multi-Model Chat extension...`);
+    console.log(`[${MODULE_NAME}] Initializing Multi-Model Chat extension v1.1...`);
     
     const { eventSource, event_types } = SillyTavern.getContext();
     
     // Register event handlers
     eventSource.on(event_types.GROUP_MEMBER_DRAFTED, onGroupMemberDrafted);
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
-    eventSource.on(event_types.CHAT_CHANGED, updateProfileSelector);
     
-    // Also update selector when character panel opens
-    const characterPopup = document.getElementById('character_popup');
-    if (characterPopup) {
-        const observer = new MutationObserver((mutations) => {
-            for (const mutation of mutations) {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-                    const display = window.getComputedStyle(characterPopup).display;
-                    if (display !== 'none') {
-                        injectProfileSelector();
-                    }
-                }
-            }
-        });
-        observer.observe(characterPopup, { attributes: true });
-    }
+    // Set up DOM observers
+    setupObservers();
     
     // Add settings UI
     await addSettingsUI();
     
-    // Try to inject selector if character panel is already open
-    await injectProfileSelector();
+    // Pre-cache profiles
+    await getAvailableProfiles();
+    
+    // Initial injection attempts
+    setTimeout(injectCharacterEditorSelector, 500);
+    setTimeout(updateGroupMemberProfiles, 1000);
     
     console.log(`[${MODULE_NAME}] Multi-Model Chat extension initialized!`);
 }
