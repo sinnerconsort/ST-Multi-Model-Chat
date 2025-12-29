@@ -1,0 +1,14 @@
+{
+    "display_name": "Multi-Model Chat",
+    "loading_order": 5,
+    "requires": [],
+    "optional": [],
+    "dependencies": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Community",
+    "version": "1.0.0",
+    "homePage": "https://github.com/SillyTavern/SillyTavern/discussions/3785",
+    "auto_update": true,
+    "minimum_client_version": "1.12.6"
+}
