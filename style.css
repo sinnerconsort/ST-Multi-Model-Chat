@@ -1,86 +1,46 @@
-/**
- * Multi-Model Chat Extension Styles
- */
+/* Multi-Model Chat Extension Styles */
 
-/* Profile selector in character editor */
-.mmc-section {
-    margin: 10px 0;
-    padding: 10px;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 5px;
-    background: var(--SmartThemeBlurTintColor);
-}
-
-.mmc-section h4 {
-    margin: 0 0 5px 0;
-    color: var(--SmartThemeBodyColor);
-}
-
-.mmc-description {
-    display: block;
-    margin-bottom: 10px;
-    color: var(--SmartThemeEmColor);
-    font-style: italic;
-}
-
-.mmc-profile-selector {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.mmc-profile-selector label {
-    font-weight: bold;
-    color: var(--SmartThemeBodyColor);
-}
-
-.mmc-profile-selector select {
-    width: 100%;
-    padding: 5px 10px;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 3px;
-    background: var(--SmartThemeBlurTintColor);
-    color: var(--SmartThemeBodyColor);
-}
-
-.mmc-profile-selector select:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Settings panel styles */
 .mmc-settings {
-    margin: 5px 0;
-}
-
-.mmc-settings-content {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 10px 0;
-}
-
-.mmc-settings .checkbox_label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-}
-
-.mmc-settings .checkbox_label input[type="checkbox"] {
-    cursor: pointer;
+    padding: 10px;
 }
 
 .mmc-info {
-    padding: 8px;
+    margin-bottom: 15px;
+    padding: 10px;
     background: var(--SmartThemeBlurTintColor);
-    border-radius: 4px;
-    border-left: 3px solid var(--SmartThemeQuoteColor);
+    border-radius: 5px;
+    font-size: 0.9em;
 }
 
-.mmc-info small {
-    color: var(--SmartThemeEmColor);
-    line-height: 1.4;
+.mmc-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.mmc-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mmc-option label {
+    cursor: pointer;
+}
+
+.mmc-fallback {
+    margin-bottom: 15px;
+}
+
+.mmc-fallback label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.mmc-fallback select {
+    width: 100%;
 }
 
 .mmc-buttons {
@@ -89,13 +49,53 @@
     flex-wrap: wrap;
 }
 
-.mmc-buttons .menu_button {
+/* Group member list inline controls */
+.mmc-inline-controls {
     display: flex;
     align-items: center;
     gap: 5px;
+    margin-left: auto;
+    padding-left: 10px;
 }
 
-/* Toast notification styling tweaks */
-.toast-info.mmc-toast {
-    background-color: var(--SmartThemeQuoteColor) !important;
+.mmc-play-btn {
+    background: var(--SmartThemeQuoteColor);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--SmartThemeBodyColor);
+    transition: background 0.2s;
+}
+
+.mmc-play-btn:hover {
+    background: var(--SmartThemeBotMesBlurTintColor);
+}
+
+.mmc-profile-select {
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid var(--SmartThemeBorderColor);
+    color: var(--SmartThemeBodyColor);
+    max-width: 120px;
+}
+
+/* Character card section */
+.mmc-character-section {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+}
+
+.mmc-character-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+}
+
+.mmc-character-section select {
+    width: 100%;
 }
