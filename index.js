@@ -13,7 +13,7 @@
  */
 
 const MODULE_NAME = 'multi_model_chat';
-const VERSION = '2.0.2';
+const VERSION = '2.0.3';
 
 // Default settings
 const defaultSettings = {
@@ -114,10 +114,16 @@ async function switchToProfile(profileName) {
     if (!profileName) return false;
     
     const context = SillyTavern.getContext();
+    const { executeSlashCommandsWithOptions } = context;
     
     try {
-        // Use ST's executeSlashCommands to switch profiles
-        await context.executeSlashCommands(`/api-profiles name="${profileName}"`);
+        // Quote the profile name to handle spaces and special characters
+        const quotedName = profileName.includes(' ') ? `"${profileName}"` : profileName;
+        
+        await executeSlashCommandsWithOptions(`/profile ${quotedName}`, {
+            handleExecutionErrors: false,
+            handleParserErrors: false,
+        });
         
         if (settings.showToasts) {
             toastr.info(`Switched to: ${profileName}`, 'MMC', { timeOut: 2000 });
@@ -208,6 +214,7 @@ async function onCharacterDrafted(eventData) {
  */
 async function triggerCharacter(charName) {
     const context = SillyTavern.getContext();
+    const { executeSlashCommandsWithOptions } = context;
     
     // Switch profile first
     const profile = getCharacterProfile(charName);
@@ -220,7 +227,12 @@ async function triggerCharacter(charName) {
     
     // Trigger the character to generate
     try {
-        await context.executeSlashCommands(`/trigger ${charName}`);
+        // Quote character name if it has spaces
+        const quotedName = charName.includes(' ') ? `"${charName}"` : charName;
+        await executeSlashCommandsWithOptions(`/trigger ${quotedName}`, {
+            handleExecutionErrors: false,
+            handleParserErrors: false,
+        });
     } catch (e) {
         console.error(`[${MODULE_NAME}] Error triggering character:`, e);
         toastr.error(`Failed to trigger ${charName}`, 'MMC');
