@@ -13,7 +13,7 @@
  */
 
 const MODULE_NAME = 'multi_model_chat';
-const VERSION = '2.0.0';
+const VERSION = '2.0.2';
 
 // Default settings
 const defaultSettings = {
@@ -23,6 +23,7 @@ const defaultSettings = {
     autoSwitch: false, // Off by default - use manual play buttons
     fallbackProfile: '',
     characterProfiles: {}, // { charName: profileName }
+    manualProfiles: [], // Manually added profile names that persist
 };
 
 let settings = { ...defaultSettings };
@@ -35,13 +36,71 @@ let isInitialized = false;
  */
 async function getAvailableProfiles() {
     try {
+        // Method 1: Try the connection profiles API directly
+        try {
+            const profilesResponse = await fetch('/api/profiles', { method: 'GET' });
+            if (profilesResponse.ok) {
+                const profiles = await profilesResponse.json();
+                if (Array.isArray(profiles) && profiles.length > 0) {
+                    cachedProfiles = profiles.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
+                    console.log(`[${MODULE_NAME}] Found profiles via /api/profiles:`, cachedProfiles);
+                    return cachedProfiles;
+                }
+            }
+        } catch (e) {
+            console.log(`[${MODULE_NAME}] /api/profiles not available`);
+        }
+        
+        // Method 2: Try getting from settings
         const response = await fetch('/api/settings/get', { method: 'POST' });
         const data = await response.json();
         
-        if (data?.connectionManager?.profiles) {
-            cachedProfiles = Object.keys(data.connectionManager.profiles);
+        // Try various possible locations for profiles
+        const possibleLocations = [
+            data?.connectionManager?.profiles,
+            data?.connection_profiles,
+            data?.profiles,
+            data?.api?.profiles,
+            data?.connectionProfiles
+        ];
+        
+        for (const location of possibleLocations) {
+            if (location) {
+                if (Array.isArray(location)) {
+                    cachedProfiles = location.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
+                } else if (typeof location === 'object') {
+                    cachedProfiles = Object.keys(location);
+                }
+                if (cachedProfiles.length > 0) {
+                    console.log(`[${MODULE_NAME}] Found profiles in settings:`, cachedProfiles);
+                    return cachedProfiles;
+                }
+            }
+        }
+        
+        // Method 3: Try to get from the UI/DOM if profiles dropdown exists
+        const profileSelect = document.querySelector('#api_profiles, #connection_profiles, select[name="api_profiles"]');
+        if (profileSelect) {
+            cachedProfiles = Array.from(profileSelect.options)
+                .map(opt => opt.value)
+                .filter(v => v && v !== 'default' && v !== '');
+            if (cachedProfiles.length > 0) {
+                console.log(`[${MODULE_NAME}] Found profiles from DOM:`, cachedProfiles);
+                return cachedProfiles;
+            }
+        }
+        
+        // Method 4: Check SillyTavern context for profile info
+        const context = SillyTavern.getContext();
+        if (context.connectionManager?.profiles) {
+            cachedProfiles = Object.keys(context.connectionManager.profiles);
+            console.log(`[${MODULE_NAME}] Found profiles in context:`, cachedProfiles);
             return cachedProfiles;
         }
+        
+        console.warn(`[${MODULE_NAME}] Could not find connection profiles. Please check browser console.`);
+        console.log(`[${MODULE_NAME}] Settings data structure:`, Object.keys(data || {}));
+        
     } catch (e) {
         console.error(`[${MODULE_NAME}] Error fetching profiles:`, e);
     }
@@ -295,20 +354,110 @@ function registerSlashCommands() {
                 .map(([char, profile]) => `${char} → ${profile}`)
                 .join('\n') || '(none)';
             
-            const msg = `MMC v${VERSION}\nAuto-switch: ${settings.autoSwitch ? 'ON' : 'OFF'}\nProfiles: ${cachedProfiles.length}\nAssignments:\n${assignments}`;
+            const msg = `MMC v${VERSION}\nAuto-switch: ${settings.autoSwitch ? 'ON' : 'OFF'}\nProfiles: ${cachedProfiles.length > 0 ? cachedProfiles.join(', ') : '(none found)'}\nAssignments:\n${assignments}`;
             
             toastr.info(msg.replace(/\n/g, '<br>'), 'MMC Debug', { 
                 timeOut: 10000,
                 escapeHtml: false 
             });
             console.log(`[${MODULE_NAME}] Debug:`, { settings, cachedProfiles });
+            
+            // Also log settings structure to help find profiles
+            try {
+                const response = await fetch('/api/settings/get', { method: 'POST' });
+                const data = await response.json();
+                console.log(`[${MODULE_NAME}] Full settings keys:`, Object.keys(data || {}));
+                console.log(`[${MODULE_NAME}] Full settings:`, data);
+            } catch (e) {
+                console.log(`[${MODULE_NAME}] Could not fetch settings for debug`);
+            }
+            
             return '';
         },
         helpString: 'Show Multi-Model Chat debug information.'
     }));
     
+    // /mmc-add-profile [name] - Manually add a profile name
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'mmc-add-profile',
+        callback: async (args, value) => {
+            const profileName = value?.trim();
+            if (!profileName) {
+                toastr.warning('Usage: /mmc-add-profile ProfileName', 'MMC');
+                return '';
+            }
+            if (!cachedProfiles.includes(profileName)) {
+                cachedProfiles.push(profileName);
+                // Save to persistent settings
+                if (!settings.manualProfiles.includes(profileName)) {
+                    settings.manualProfiles.push(profileName);
+                    SillyTavern.getContext().saveSettingsDebounced();
+                }
+                toastr.success(`Added profile: ${profileName}`, 'MMC');
+                updateProfilesDisplay();
+            } else {
+                toastr.info(`Profile already exists: ${profileName}`, 'MMC');
+            }
+            return '';
+        },
+        unnamedArgumentList: [
+            SlashCommandArgument.fromProps({
+                description: 'Profile name to add',
+                typeList: [ARGUMENT_TYPE.STRING],
+                isRequired: true
+            })
+        ],
+        helpString: 'Manually add a connection profile name if auto-detection fails.'
+    }));
+    
     console.log(`[${MODULE_NAME}] Slash commands registered: /mmc-go, /mmc-debug`);
     return true;
+}
+
+/**
+ * Update the profiles display in settings
+ */
+function updateProfilesDisplay() {
+    const display = document.getElementById('mmc_profiles_display');
+    if (display) {
+        if (cachedProfiles.length > 0) {
+            // Show profiles with remove buttons for manual ones
+            const profilesHtml = cachedProfiles.map(p => {
+                const isManual = settings.manualProfiles.includes(p);
+                if (isManual) {
+                    return `<span class="mmc-profile-tag">${p} <a href="#" class="mmc-remove-profile" data-profile="${p}" title="Remove">×</a></span>`;
+                }
+                return p;
+            }).join(', ');
+            display.innerHTML = profilesHtml;
+            
+            // Add remove handlers
+            display.querySelectorAll('.mmc-remove-profile').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const profileToRemove = e.target.getAttribute('data-profile');
+                    // Remove from both arrays
+                    cachedProfiles = cachedProfiles.filter(p => p !== profileToRemove);
+                    settings.manualProfiles = settings.manualProfiles.filter(p => p !== profileToRemove);
+                    SillyTavern.getContext().saveSettingsDebounced();
+                    updateProfilesDisplay();
+                    toastr.info(`Removed profile: ${profileToRemove}`, 'MMC');
+                });
+            });
+        } else {
+            display.textContent = '(none)';
+        }
+    }
+    
+    // Update fallback dropdown
+    const dropdown = document.getElementById('mmc_fallback_profile');
+    if (dropdown) {
+        dropdown.innerHTML = `<option value="">(None)</option>` + 
+            cachedProfiles.map(p => `<option value="${p}" ${settings.fallbackProfile === p ? 'selected' : ''}>${p}</option>`).join('');
+    }
+    
+    // Re-inject group controls to update dropdowns there
+    injectGroupMemberControls();
 }
 
 /**
@@ -357,6 +506,18 @@ function createSettingsHTML() {
                             <option value="">(None)</option>
                             ${fallbackOptions}
                         </select>
+                    </div>
+                    
+                    <div class="mmc-manual-add" style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px;"><b>Add Profile Manually:</b></label>
+                        <small style="display: block; margin-bottom: 5px; opacity: 0.7;">If profiles aren't detected, type the exact name and click Add</small>
+                        <div style="display: flex; gap: 5px;">
+                            <input type="text" id="mmc_manual_profile" placeholder="Profile name..." style="flex: 1;">
+                            <button id="mmc_add_profile_btn" class="menu_button">Add</button>
+                        </div>
+                        <div id="mmc_profile_list" style="margin-top: 8px; font-size: 0.85em;">
+                            <b>Known profiles:</b> <span id="mmc_profiles_display">${cachedProfiles.length > 0 ? cachedProfiles.join(', ') : '(none)'}</span>
+                        </div>
                     </div>
                     
                     <div class="mmc-buttons">
@@ -420,19 +581,35 @@ function addSettingsUI() {
     
     document.getElementById('mmc_refresh_profiles').addEventListener('click', async () => {
         await getAvailableProfiles();
-        // Refresh the dropdown
-        const dropdown = document.getElementById('mmc_fallback_profile');
-        if (dropdown) {
-            dropdown.innerHTML = `<option value="">(None)</option>` + 
-                cachedProfiles.map(p => `<option value="${p}" ${settings.fallbackProfile === p ? 'selected' : ''}>${p}</option>`).join('');
-        }
-        // Re-inject group controls
-        injectGroupMemberControls();
+        updateProfilesDisplay();
         toastr.success(`Found ${cachedProfiles.length} profiles`, 'MMC');
     });
     
     document.getElementById('mmc_inject_controls').addEventListener('click', () => {
         injectGroupMemberControls();
+    });
+    
+    // Manual profile add
+    document.getElementById('mmc_add_profile_btn').addEventListener('click', () => {
+        const input = document.getElementById('mmc_manual_profile');
+        const profileName = input.value.trim();
+        if (profileName && !cachedProfiles.includes(profileName)) {
+            cachedProfiles.push(profileName);
+            // Also save to persistent settings
+            if (!settings.manualProfiles.includes(profileName)) {
+                settings.manualProfiles.push(profileName);
+                SillyTavern.getContext().saveSettingsDebounced();
+            }
+            input.value = '';
+            updateProfilesDisplay();
+            toastr.success(`Added profile: ${profileName}`, 'MMC');
+        }
+    });
+    
+    document.getElementById('mmc_manual_profile').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            document.getElementById('mmc_add_profile_btn').click();
+        }
     });
     
     console.log(`[${MODULE_NAME}] Settings UI added`);
@@ -447,6 +624,10 @@ function loadSettings() {
     
     if (saved) {
         settings = { ...defaultSettings, ...saved };
+        // Ensure manualProfiles is an array
+        if (!Array.isArray(settings.manualProfiles)) {
+            settings.manualProfiles = [];
+        }
     }
     
     // Ensure settings are saved to extension settings
@@ -468,7 +649,15 @@ async function init() {
     
     // Fetch available profiles
     await getAvailableProfiles();
-    console.log(`[${MODULE_NAME}] Found ${cachedProfiles.length} connection profiles`);
+    
+    // Merge in any manually saved profiles
+    for (const profile of settings.manualProfiles) {
+        if (!cachedProfiles.includes(profile)) {
+            cachedProfiles.push(profile);
+        }
+    }
+    
+    console.log(`[${MODULE_NAME}] Total profiles (auto + manual): ${cachedProfiles.length}`, cachedProfiles);
     
     // Add settings UI
     addSettingsUI();

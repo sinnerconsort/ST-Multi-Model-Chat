@@ -99,3 +99,24 @@
 .mmc-character-section select {
     width: 100%;
 }
+
+/* Profile tags with remove buttons */
+.mmc-profile-tag {
+    display: inline-block;
+    background: var(--SmartThemeBlurTintColor);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin: 2px;
+}
+
+.mmc-remove-profile {
+    color: var(--SmartThemeBodyColor);
+    text-decoration: none;
+    margin-left: 4px;
+    opacity: 0.7;
+}
+
+.mmc-remove-profile:hover {
+    opacity: 1;
+    color: #ff6b6b;
+}
