@@ -1,947 +1,122 @@
-/**
- * Inland Empire - Styles
- * 
- * Disco Elysium-inspired styling with tabbed interface
- */
+/* Multi-Model Chat Extension Styles */
 
-/* ═══════════════════════════════════════════════════════════════
-   CSS VARIABLES
-   ═══════════════════════════════════════════════════════════════ */
-
-:root {
-    --ie-bg-dark: #1a1a2e;
-    --ie-bg-medium: #252540;
-    --ie-bg-light: #2d2d4a;
-    --ie-text-primary: #e0e0e0;
-    --ie-text-secondary: #a0a0b0;
-    --ie-text-muted: #707080;
-    --ie-border-color: #3a3a5a;
-    --ie-accent: #9d8df1;
-    --ie-success: #90EE90;
-    --ie-failure: #FF6347;
-    --ie-critical-success: #FFD700;
-    --ie-critical-failure: #DC143C;
-    
-    /* Attribute colors */
-    --ie-intellect: #89CFF0;
-    --ie-psyche: #DDA0DD;
-    --ie-physique: #F08080;
-    --ie-motorics: #F0E68C;
+.mmc-settings {
+    padding: 10px;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   FLOATING ACTION BUTTON (FAB)
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-fab {
-    position: fixed;
-    left: 10px;
-    top: calc(50% + 80px);
-    transform: translateY(-50%);
-    width: 50px;
-    height: 50px;
-    background: var(--ie-bg-medium, #252540);
-    border: 2px solid var(--ie-accent, #9d8df1);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 99998;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-    transition: all 0.3s ease;
+.mmc-info {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 5px;
+    font-size: 0.9em;
 }
 
-.ie-fab:hover {
-    background: var(--ie-accent, #9d8df1);
-    transform: translateY(-50%) scale(1.1);
-}
-
-.ie-fab:hover i {
-    color: var(--ie-bg-dark, #1a1a2e);
-}
-
-.ie-fab i {
-    font-size: 22px;
-    color: var(--ie-accent, #9d8df1);
-    transition: color 0.3s ease;
-}
-
-/* Hide FAB when panel is open */
-.ie-fab.ie-fab-active {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-50%) scale(0.5);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   PANEL CONTAINER
-   ═══════════════════════════════════════════════════════════════ */
-
-.inland-empire-panel {
-    position: fixed;
-    left: 10px;
-    top: 60px;
-    transform: scale(0.9);
-    transform-origin: top left;
-    width: 340px;
-    max-width: calc(100vw - 30px);
-    max-height: calc(100vh - 80px);
-    background: var(--ie-bg-dark, #1a1a2e);
-    border: 1px solid var(--ie-border-color, #3a3a5a);
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    z-index: 99999;
+.mmc-options {
     display: flex;
     flex-direction: column;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    font-size: 13px;
-    color: var(--ie-text-primary, #e0e0e0);
-    overflow: hidden;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    opacity: 0;
-    pointer-events: none;
+    gap: 10px;
+    margin-bottom: 15px;
 }
 
-.inland-empire-panel.ie-panel-open {
-    transform: scale(1);
-    opacity: 1;
-    pointer-events: auto;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   PANEL HEADER
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 12px;
-    background: var(--ie-bg-medium, #252540);
-    border-bottom: 1px solid var(--ie-border-color, #3a3a5a);
-    min-height: 40px;
-    flex-shrink: 0;
-}
-
-.ie-panel-title {
+.mmc-option {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--ie-accent, #9d8df1);
 }
 
-.ie-panel-title i {
-    font-size: 16px;
+.mmc-option label {
+    cursor: pointer;
 }
 
-.ie-panel-controls {
+.mmc-fallback {
+    margin-bottom: 15px;
+}
+
+.mmc-fallback label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.mmc-fallback select {
+    width: 100%;
+}
+
+.mmc-buttons {
     display: flex;
-    gap: 4px;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   TABS
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-tabs {
-    display: flex;
-    background: var(--ie-bg-medium, #252540);
-    border-bottom: 1px solid var(--ie-border-color, #3a3a5a);
-    flex-shrink: 0;
-}
-
-.ie-tab {
-    flex: 1;
+/* Group member list inline controls */
+.mmc-inline-controls {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 10px 8px;
-    background: transparent;
+    gap: 5px;
+    margin-left: auto;
+    padding-left: 10px;
+}
+
+.mmc-play-btn {
+    background: var(--SmartThemeQuoteColor);
     border: none;
-    border-bottom: 2px solid transparent;
-    color: var(--ie-text-muted, #707080);
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.ie-tab:hover {
-    color: var(--ie-text-secondary, #a0a0b0);
-    background: var(--ie-bg-light, #2d2d4a);
-}
-
-.ie-tab.ie-tab-active {
-    color: var(--ie-accent, #9d8df1);
-    border-bottom-color: var(--ie-accent, #9d8df1);
-    background: var(--ie-bg-dark, #1a1a2e);
-}
-
-.ie-tab i {
-    font-size: 12px;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   TAB CONTENT
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-tab-content {
-    display: none;
-    flex-direction: column;
-    gap: 10px;
-    overflow-y: auto;
-    flex: 1;
-}
-
-.ie-tab-content.ie-tab-content-active {
-    display: flex;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   PANEL CONTENT
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-panel-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-}
-
-.ie-section {
-    background: var(--ie-bg-medium, #252540);
-    border-radius: 6px;
-    padding: 10px;
-    margin-bottom: 10px;
-}
-
-.ie-section:last-child {
-    margin-bottom: 0;
-}
-
-.ie-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    font-weight: 600;
-    font-size: 12px;
-    color: var(--ie-text-secondary, #a0a0b0);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   BUTTONS
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-btn {
-    background: var(--ie-bg-light, #2d2d4a);
-    border: 1px solid var(--ie-border-color, #3a3a5a);
     border-radius: 4px;
-    color: var(--ie-text-secondary, #a0a0b0);
+    padding: 4px 8px;
     cursor: pointer;
-    padding: 6px 10px;
     font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease;
+    color: var(--SmartThemeBodyColor);
+    transition: background 0.2s;
 }
 
-.ie-btn:hover {
-    background: var(--ie-bg-medium, #252540);
-    color: var(--ie-text-primary, #e0e0e0);
-    border-color: var(--ie-accent, #9d8df1);
+.mmc-play-btn:hover {
+    background: var(--SmartThemeBotMesBlurTintColor);
 }
 
-.ie-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.ie-btn-sm {
-    padding: 4px 8px;
+.mmc-profile-select {
     font-size: 11px;
-}
-
-.ie-btn-primary {
-    background: var(--ie-accent, #9d8df1);
-    color: var(--ie-bg-dark, #1a1a2e);
-    border-color: var(--ie-accent, #9d8df1);
-}
-
-.ie-btn-primary:hover {
-    background: #b0a0ff;
-    border-color: #b0a0ff;
-    color: var(--ie-bg-dark, #1a1a2e);
-}
-
-.ie-btn-trigger {
-    width: 100%;
-    justify-content: center;
-    padding: 10px;
-    font-size: 13px;
-}
-
-.ie-btn-close-panel {
-    padding: 4px 8px;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   ATTRIBUTES DISPLAY
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-attributes-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-}
-
-.ie-attribute-block {
-    background: var(--ie-bg-dark, #1a1a2e);
+    padding: 2px 4px;
     border-radius: 4px;
-    border-left: 3px solid;
-    overflow: hidden;
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid var(--SmartThemeBorderColor);
+    color: var(--SmartThemeBodyColor);
+    max-width: 120px;
 }
 
-.ie-attr-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 8px;
-    font-size: 11px;
-    font-weight: 600;
+/* Character card section */
+.mmc-character-section {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
 }
 
-.ie-attr-name {
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.ie-attr-points {
+.mmc-character-section h4 {
+    margin: 0 0 10px 0;
     font-size: 14px;
-    font-weight: 700;
 }
 
-.ie-attr-skills {
-    padding: 6px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
+.mmc-character-section select {
+    width: 100%;
 }
 
-.ie-skill-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-}
-
-.ie-skill-abbrev {
-    width: 26px;
-    font-weight: 600;
-    font-size: 9px;
-}
-
-.ie-skill-bar {
-    flex: 1;
-    height: 4px;
-    background: var(--ie-bg-light, #2d2d4a);
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.ie-skill-fill {
-    height: 100%;
-    border-radius: 2px;
-    transition: width 0.3s ease;
-}
-
-.ie-skill-level {
-    width: 14px;
-    text-align: right;
-    color: var(--ie-text-muted, #707080);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   VOICES OUTPUT
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-voices-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 100px;
-}
-
-.ie-voices-container {
-    flex: 1;
-    overflow-y: auto;
-    max-height: 150px;
-}
-
-.ie-voices-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 20px;
-    color: var(--ie-text-muted, #707080);
-    font-style: italic;
-    font-size: 12px;
-}
-
-.ie-voices-empty i {
-    font-size: 20px;
-    opacity: 0.5;
-}
-
-.ie-voices-batch {
-    border-bottom: 1px solid var(--ie-border-color, #3a3a5a);
-    padding-bottom: 8px;
-    margin-bottom: 8px;
-}
-
-.ie-voices-batch:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-}
-
-.ie-voice-entry {
-    padding: 6px 0;
-    line-height: 1.5;
-    border-bottom: 1px dotted var(--ie-border-color, #3a3a5a);
-}
-
-.ie-voice-entry:last-child {
-    border-bottom: none;
-}
-
-.ie-voice-signature {
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-size: 12px;
-}
-
-.ie-voice-check {
-    font-size: 10px;
-    padding: 1px 4px;
+/* Profile tags with remove buttons */
+.mmc-profile-tag {
+    display: inline-block;
+    background: var(--SmartThemeBlurTintColor);
+    padding: 2px 6px;
     border-radius: 3px;
+    margin: 2px;
+}
+
+.mmc-remove-profile {
+    color: var(--SmartThemeBodyColor);
+    text-decoration: none;
     margin-left: 4px;
+    opacity: 0.7;
 }
 
-.ie-voice-check.success {
-    background: rgba(144, 238, 144, 0.2);
-    color: var(--ie-success, #90EE90);
-}
-
-.ie-voice-check.failure {
-    background: rgba(255, 99, 71, 0.2);
-    color: var(--ie-failure, #FF6347);
-}
-
-.ie-voice-check.critical-success {
-    background: rgba(255, 215, 0, 0.3);
-    color: var(--ie-critical-success, #FFD700);
-    font-weight: 700;
-}
-
-.ie-voice-check.critical-failure {
-    background: rgba(220, 20, 60, 0.3);
-    color: var(--ie-critical-failure, #DC143C);
-    font-weight: 700;
-}
-
-.ie-voice-content {
-    color: var(--ie-text-primary, #e0e0e0);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   FORM ELEMENTS
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-form-group {
-    margin-bottom: 10px;
-}
-
-.ie-form-group:last-child {
-    margin-bottom: 0;
-}
-
-.ie-form-group label {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 11px;
-    color: var(--ie-text-secondary, #a0a0b0);
-}
-
-.ie-form-group input[type="text"],
-.ie-form-group input[type="password"],
-.ie-form-group input[type="number"],
-.ie-form-group select,
-.ie-form-group textarea {
-    width: 100%;
-    padding: 8px 10px;
-    background: var(--ie-bg-dark, #1a1a2e);
-    border: 1px solid var(--ie-border-color, #3a3a5a);
-    border-radius: 4px;
-    color: var(--ie-text-primary, #e0e0e0);
-    font-size: 12px;
-    box-sizing: border-box;
-}
-
-.ie-form-group textarea {
-    resize: vertical;
-    min-height: 80px;
-    font-family: inherit;
-    line-height: 1.4;
-}
-
-.ie-form-group input:focus,
-.ie-form-group select:focus,
-.ie-form-group textarea:focus {
-    outline: none;
-    border-color: var(--ie-accent, #9d8df1);
-}
-
-.ie-form-group .ie-hint {
-    display: block;
-    font-size: 10px;
-    color: var(--ie-text-muted);
-    margin-top: 4px;
-}
-
-.ie-third-person-options {
-    display: none;
-}
-
-.ie-form-row {
-    display: flex;
-    gap: 10px;
-}
-
-.ie-form-row .ie-form-group {
-    flex: 1;
-}
-
-.ie-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.ie-checkbox input[type="checkbox"] {
-    width: auto;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   BUILD EDITOR
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-build-intro {
-    margin-bottom: 12px;
-    text-align: center;
-}
-
-.ie-build-intro p {
-    margin: 0 0 8px 0;
-    color: var(--ie-text-secondary, #a0a0b0);
-    font-size: 12px;
-}
-
-.ie-points-remaining {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--ie-accent, #9d8df1);
-}
-
-.ie-attributes-editor {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.ie-attribute-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px;
-    background: var(--ie-bg-dark, #1a1a2e);
-    border-radius: 6px;
-}
-
-.ie-attribute-label {
-    width: 90px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.ie-attribute-label .ie-attr-name {
-    font-weight: 600;
-    font-size: 11px;
-}
-
-.ie-attribute-label .ie-attr-value {
-    font-size: 16px;
-    font-weight: 700;
-    min-width: 18px;
-    text-align: center;
-}
-
-.ie-attribute-slider {
-    flex: 1;
-    height: 6px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: var(--ie-bg-medium, #252540);
-    border-radius: 3px;
-    cursor: pointer;
-}
-
-.ie-attribute-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    background: var(--ie-accent, #9d8df1);
-    border-radius: 50%;
-    cursor: pointer;
-    transition: transform 0.2s ease;
-}
-
-.ie-attribute-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.2);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   SCROLLBAR
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-panel-content::-webkit-scrollbar,
-.ie-voices-container::-webkit-scrollbar,
-.ie-tab-content::-webkit-scrollbar {
-    width: 5px;
-}
-
-.ie-panel-content::-webkit-scrollbar-track,
-.ie-voices-container::-webkit-scrollbar-track,
-.ie-tab-content::-webkit-scrollbar-track {
-    background: var(--ie-bg-dark, #1a1a2e);
-}
-
-.ie-panel-content::-webkit-scrollbar-thumb,
-.ie-voices-container::-webkit-scrollbar-thumb,
-.ie-tab-content::-webkit-scrollbar-thumb {
-    background: var(--ie-border-color, #3a3a5a);
-    border-radius: 3px;
-}
-
-.ie-panel-content::-webkit-scrollbar-thumb:hover,
-.ie-voices-container::-webkit-scrollbar-thumb:hover,
-.ie-tab-content::-webkit-scrollbar-thumb:hover {
-    background: var(--ie-accent, #9d8df1);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE / MOBILE
-   ═══════════════════════════════════════════════════════════════ */
-
-@media (max-width: 768px) {
-    .ie-fab {
-        left: 8px;
-        top: calc(50% + 70px);
-        width: 44px;
-        height: 44px;
-    }
-    
-    .ie-fab i {
-        font-size: 18px;
-    }
-    
-    .inland-empire-panel {
-        left: 8px;
-        top: 60px;
-        width: calc(100vw - 24px);
-        max-height: calc(100vh - 80px);
-    }
-    
-    .ie-attributes-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .ie-tab span {
-        display: none;
-    }
-    
-    .ie-tab i {
-        font-size: 14px;
-    }
-}
-
-/* Very small screens */
-@media (max-width: 400px) {
-    .ie-fab {
-        left: 5px;
-        top: calc(50% + 60px);
-        width: 40px;
-        height: 40px;
-    }
-    
-    .ie-fab i {
-        font-size: 16px;
-    }
-    
-    .inland-empire-panel {
-        left: 5px;
-        right: 5px;
-        top: 55px;
-        width: auto;
-        max-height: calc(100vh - 75px);
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   CHAT INJECTED VOICES
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-chat-voices {
-    margin-top: 15px;
-    padding-top: 10px;
-    border-top: 1px solid rgba(157, 141, 241, 0.2);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.ie-chat-voice-block {
-    background: linear-gradient(135deg, rgba(37, 37, 64, 0.9) 0%, rgba(26, 26, 46, 0.9) 100%);
-    border-left: 3px solid var(--ie-accent, #9d8df1);
-    border-radius: 0 6px 6px 0;
-    padding: 10px 14px;
-    position: relative;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.ie-voice-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-}
-
-.ie-voice-name {
-    font-weight: 700;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.ie-check-badge {
-    font-size: 10px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-weight: 500;
-}
-
-.ie-check-passive {
-    background: rgba(157, 141, 241, 0.2);
-    color: var(--ie-accent, #9d8df1);
-}
-
-.ie-check-ancient {
-    background: rgba(47, 79, 79, 0.4);
-    color: #8FBC8F;
-    font-weight: 600;
-}
-
-.ie-check-success {
-    background: rgba(144, 238, 144, 0.2);
-    color: var(--ie-success, #90EE90);
-}
-
-.ie-check-failure {
-    background: rgba(255, 99, 71, 0.2);
-    color: var(--ie-failure, #FF6347);
-}
-
-.ie-voice-text {
-    color: var(--ie-text-primary, #e0e0e0);
-    font-size: 13px;
-    line-height: 1.5;
-    font-style: italic;
-}
-
-/* Mobile adjustments for chat voices */
-@media (max-width: 768px) {
-    .ie-chat-voice-block {
-        padding: 8px 10px;
-    }
-    
-    .ie-voice-name {
-        font-size: 11px;
-    }
-    
-    .ie-voice-text {
-        font-size: 12px;
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   STATUS EFFECTS UI
-   ═══════════════════════════════════════════════════════════════ */
-
-.ie-active-effects-summary {
-    padding: 10px;
-    background: var(--ie-bg-light);
-    border-radius: 6px;
-    font-size: 12px;
-    color: var(--ie-text-secondary);
-    text-align: center;
-}
-
-.ie-ancient-warning {
-    color: var(--ie-failure);
-    font-weight: 600;
-}
-
-.ie-status-category {
-    margin-bottom: 12px;
-}
-
-.ie-status-category-label {
-    font-size: 11px;
-    color: var(--ie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 6px;
-    padding-left: 2px;
-}
-
-.ie-status-buttons {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-}
-
-.ie-status-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 8px 4px;
-    background: var(--ie-bg-light);
-    border: 1px solid var(--ie-border-color);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-height: 52px;
-}
-
-.ie-status-btn:hover {
-    background: var(--ie-bg-medium);
-    border-color: var(--ie-accent);
-}
-
-.ie-status-btn.ie-status-active {
-    background: var(--ie-accent);
-    border-color: var(--ie-accent);
-}
-
-.ie-status-btn.ie-status-active .ie-status-name {
-    color: var(--ie-bg-dark);
-}
-
-.ie-status-btn.ie-status-active .ie-status-icon {
-    transform: scale(1.1);
-}
-
-.ie-status-icon {
-    font-size: 18px;
-    margin-bottom: 2px;
-    transition: transform 0.2s ease;
-}
-
-.ie-status-name {
-    font-size: 9px;
-    color: var(--ie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    text-align: center;
-}
-
-/* Ancient Voices Info */
-.ie-ancient-voices-info {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.ie-ancient-voice-item {
-    display: flex;
-    flex-direction: column;
-    padding: 10px;
-    background: var(--ie-bg-light);
-    border-radius: 6px;
-    border-left: 3px solid #2F4F4F;
-}
-
-.ie-ancient-voice-item:last-child {
-    border-left-color: #800000;
-}
-
-.ie-ancient-icon {
-    font-size: 16px;
-    margin-bottom: 4px;
-}
-
-.ie-ancient-name {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--ie-text-primary);
-    margin-bottom: 2px;
-}
-
-.ie-ancient-triggers {
-    font-size: 10px;
-    color: var(--ie-text-muted);
-}
-
-/* Chat injected ancient voice special styling */
-.ie-chat-voice-block.ie-ancient-voice {
-    background: linear-gradient(135deg, rgba(47, 79, 79, 0.9) 0%, rgba(26, 26, 46, 0.9) 100%);
-    border-left-width: 4px;
-}
-
-.ie-chat-voice-block.ie-ancient-voice .ie-voice-text {
-    font-weight: 500;
-}
-
-/* Mobile responsive for status */
-@media (max-width: 768px) {
-    .ie-status-buttons {
-        grid-template-columns: repeat(4, 1fr);
-    }
-    
-    .ie-status-btn {
-        padding: 6px 2px;
-        min-height: 48px;
-    }
-    
-    .ie-status-icon {
-        font-size: 16px;
-    }
-    
-    .ie-status-name {
-        font-size: 8px;
-    }
+.mmc-remove-profile:hover {
+    opacity: 1;
+    color: #ff6b6b;
 }
