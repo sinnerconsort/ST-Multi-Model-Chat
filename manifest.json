@@ -1,12 +1,12 @@
 {
-    "display_name": "Multi-Model Chat",
-    "loading_order": 10,
+    "display_name": "Inland Empire",
+    "loading_order": 150,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
     "author": "Judas",
-    "version": "2.0.3",
-    "homePage": "",
+    "version": "0.2.6",
+    "description": "Disco Elysium-style internal voices with status effects, ancient voices, POV control, character context, and auto-detection!",
     "auto_update": false
 }
