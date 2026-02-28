@@ -120,3 +120,33 @@
     opacity: 1;
     color: #ff6b6b;
 }
+
+/* Assignments list */
+.mmc-assignment-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 6px;
+    margin: 2px 0;
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.mmc-remove-assignment {
+    color: var(--SmartThemeBodyColor);
+    text-decoration: none;
+    opacity: 0.5;
+    font-size: 1.2em;
+    padding: 0 4px;
+}
+
+.mmc-remove-assignment:hover {
+    opacity: 1;
+    color: #ff6b6b;
+}
+
+.mmc-assignments-section {
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    padding-top: 10px;
+}
