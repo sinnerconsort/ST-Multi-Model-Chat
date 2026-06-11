@@ -25,7 +25,7 @@
  */
 
 const MODULE_NAME = 'multi_model_chat';   // unchanged — preserves v2 settings
-const VERSION = '3.0.2';
+const VERSION = '3.0.3';
 const LOG = `[${MODULE_NAME}]`;
 
 const defaultSettings = {
@@ -308,10 +308,13 @@ function findGroupMemberEls() {
     const els = [...document.querySelectorAll(
         '.rm_group_members .group_member, #rm_group_members .group_member'
     )];
+    // NOTE: no visibility (offsetParent) filter — on mobile, focusing the
+    // chat input closes the side panel, so the list is often display:none at
+    // the moment injection runs. Injecting into a hidden panel is fine; the
+    // controls are there when it reopens.
     return els.filter(el =>
         !el.closest('#group_member_template')
-        && !el.closest('#rm_group_add_members')
-        && el.offsetParent !== null);
+        && !el.closest('#rm_group_add_members'));
 }
 
 /**
@@ -457,7 +460,7 @@ function registerSlashCommands() {
                 `In group chat: ${isGroupChat() ? 'yes' : 'NO'}`,
                 `.group_member total: ${anyMember} (${withDataChid} with data-chid)`,
                 `In current-members list: ${inMembersList}`,
-                `Visible members found: ${result.members}`,
+                `Members matched: ${result.members}`,
                 `Controls injected now: ${result.injected}`,
                 `Controls present total: ${existing}`,
                 existing > 0 && result.members > 0
