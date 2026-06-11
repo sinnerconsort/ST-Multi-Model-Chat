@@ -25,7 +25,7 @@
  */
 
 const MODULE_NAME = 'multi_model_chat';   // unchanged — preserves v2 settings
-const VERSION = '3.0.0';
+const VERSION = '3.0.1';
 const LOG = `[${MODULE_NAME}]`;
 
 const defaultSettings = {
@@ -292,17 +292,27 @@ function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');
 }
 
+/**
+ * Find visible group member rows wherever ST rendered them. Newer ST versions
+ * paginate the member list and containers vary by version/theme, so don't
+ * scope to a single container id — scan, then exclude the hidden clone
+ * template (#group_member_template) and anything not actually displayed.
+ */
+function findGroupMemberEls() {
+    return [...document.querySelectorAll('.group_member[chid]')]
+        .filter(el => !el.closest('#group_member_template') && el.offsetParent !== null);
+}
+
 function injectGroupControls() {
-    if (!settings.enabled) return;
+    if (!settings.enabled) return { members: 0, injected: 0 };
 
-    const container = document.querySelector('#rm_group_members');
-    if (!container) return;
+    const members = findGroupMemberEls();
+    let injected = 0;
+    if (!members.length) return { members: 0, injected: 0 };
 
-    const members = container.querySelectorAll('.group_member[chid]');
-    if (!members.length) return;
-
-    // Per-group default row (once)
-    if (!container.querySelector('.mmc-group-default')) {
+    // Per-group default row (once) — pin it above the first member row
+    const listContainer = members[0].parentElement;
+    if (listContainer && !document.querySelector('.mmc-group-default')) {
         const gid = ctx().groupId;
         const row = document.createElement('div');
         row.className = 'mmc-group-default';
@@ -311,7 +321,7 @@ function injectGroupControls() {
             <select class="mmc-profile-select mmc-group-default-select">
                 ${buildProfileOptions(gid != null ? settings.groupDefaults[gid] : '')}
             </select>`;
-        container.prepend(row);
+        listContainer.prepend(row);
         row.querySelector('select').addEventListener('change', (e) => {
             e.stopPropagation();
             setGroupDefault(e.target.value);
@@ -333,6 +343,7 @@ function injectGroupControls() {
                 ${buildProfileOptions(settings.characterProfiles[char.avatar] || settings.legacyNameProfiles[char.name] || '')}
             </select>`;
         member.appendChild(controls);
+        injected++;
 
         controls.querySelector('.mmc-play-btn').addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -346,6 +357,8 @@ function injectGroupControls() {
         // Don't let taps on the select open the character card
         controls.querySelector('.mmc-profile-select').addEventListener('click', e => e.stopPropagation());
     });
+
+    return { members: members.length, injected };
 }
 
 // ─── Slash commands ──────────────────────────────────────────────────────────
@@ -403,6 +416,31 @@ function registerSlashCommands() {
     }));
 
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'mmc-inject',
+        callback: async () => {
+            const allWithChid = document.querySelectorAll('.group_member[chid]').length;
+            const anyMember = document.querySelectorAll('.group_member').length;
+            const result = injectGroupControls();
+            const existing = document.querySelectorAll('.mmc-inline-controls').length;
+            const msg = [
+                `In group chat: ${isGroupChat() ? 'yes' : 'NO'}`,
+                `.group_member elements: ${anyMember} (${allWithChid} with chid)`,
+                `Visible members found: ${result.members}`,
+                `Controls injected now: ${result.injected}`,
+                `Controls present total: ${existing}`,
+                existing > 0 && result.members > 0
+                    ? 'Controls exist — if you can\'t see them, it\'s a layout/theme clipping issue.'
+                    : (anyMember > 0 && allWithChid === 0
+                        ? 'Members exist but lack the chid attribute — ST changed its markup; report this!'
+                        : (anyMember === 0 ? 'No member rows rendered — open the group\'s Current Members list first.' : '')),
+            ].filter(Boolean).join('\n');
+            toastr.info(escapeHtml(msg).replace(/\n/g, '<br>'), 'MMC Inject', { timeOut: 12000, escapeHtml: false });
+            return '';
+        },
+        helpString: 'Force-inject group controls and report what was found (mobile-friendly diagnostics).',
+    }));
+
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
         name: 'mmc-debug',
         callback: async () => {
             const chars = ctx().characters || [];
@@ -445,7 +483,7 @@ function createSettingsHTML() {
             With auto-switch on, profiles apply automatically when a character is
             drafted to speak.<br>
             Precedence: <b>character → group default → fallback</b>.<br><br>
-            <b>Commands:</b> /mmc-go, /mmc-assign, /mmc-debug
+            <b>Commands:</b> /mmc-go, /mmc-assign, /mmc-debug, /mmc-inject
           </small></div>
 
           <div class="mmc-options">
@@ -598,16 +636,15 @@ async function init() {
     ev?.on(types.CHAT_CHANGED || 'chat_id_changed', onChatChanged);
     if (types.GROUP_UPDATED) ev.on(types.GROUP_UPDATED, () => setTimeout(injectGroupControls, 100));
 
-    // Narrow observer on the group-members panel only — the v2 body-wide
-    // subtree observer is gone. This catches the panel (re)rendering.
-    const target = document.getElementById('rm_group_members')?.parentElement || document.getElementById('right-nav-panel');
-    if (target) {
-        let debounce = null;
-        new MutationObserver(() => {
-            clearTimeout(debounce);
-            debounce = setTimeout(injectGroupControls, 150);
-        }).observe(target, { childList: true, subtree: true });
-    }
+    // Debounced observer. Prefer the right nav panel; fall back to body —
+    // a 150ms-debounced callback is cheap, and container ids vary too much
+    // across ST versions/themes to scope harder than this.
+    const target = document.getElementById('right-nav-panel') || document.body;
+    let debounce = null;
+    new MutationObserver(() => {
+        clearTimeout(debounce);
+        debounce = setTimeout(injectGroupControls, 150);
+    }).observe(target, { childList: true, subtree: true });
 
     wasInGroup = isGroupChat();
     isInitialized = true;

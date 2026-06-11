@@ -62,3 +62,10 @@
 }
 .mmc-group-default-label { flex: 0 0 auto; opacity: 0.8; }
 .mmc-group-default-select { flex: 1 1 auto; min-width: 0; min-height: 32px; }
+
+/* If the member row is a flex container, push our controls to their own
+   full-width line instead of getting squeezed/clipped at the row's end */
+.group_member .mmc-inline-controls {
+    flex-basis: 100%;
+    order: 99;
+}
