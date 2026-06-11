@@ -25,7 +25,7 @@
  */
 
 const MODULE_NAME = 'multi_model_chat';   // unchanged — preserves v2 settings
-const VERSION = '3.0.1';
+const VERSION = '3.0.2';
 const LOG = `[${MODULE_NAME}]`;
 
 const defaultSettings = {
@@ -292,15 +292,38 @@ function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');
 }
 
+// Controls we created (with live listeners). The member-list popout clones
+// the list via innerHTML, which strips listeners — anything not in this set
+// is a dead clone and gets replaced on the next injection pass.
+const liveControls = new WeakSet();
+
 /**
- * Find visible group member rows wherever ST rendered them. Newer ST versions
- * paginate the member list and containers vary by version/theme, so don't
- * scope to a single container id — scan, then exclude the hidden clone
- * template (#group_member_template) and anything not actually displayed.
+ * Find current-member rows. Since ST's pagination refactor these live in
+ * '.rm_group_members' containers (a CLASS — there can be several, including
+ * the popout), and rows are identified by 'data-chid', not 'chid'. The
+ * add-candidates list (#rm_group_add_members) uses the same template, so
+ * exclude it explicitly or every character in the picker gets a dropdown.
  */
 function findGroupMemberEls() {
-    return [...document.querySelectorAll('.group_member[chid]')]
-        .filter(el => !el.closest('#group_member_template') && el.offsetParent !== null);
+    const els = [...document.querySelectorAll(
+        '.rm_group_members .group_member, #rm_group_members .group_member'
+    )];
+    return els.filter(el =>
+        !el.closest('#group_member_template')
+        && !el.closest('#rm_group_add_members')
+        && el.offsetParent !== null);
+}
+
+/**
+ * Resolve the character for a member row.
+ * ST current: data-chid (character index). Legacy: chid.
+ * Last resort: the avatar <img title>, which ST sets to the avatar filename.
+ */
+function memberChar(member) {
+    const ref = member.getAttribute('data-chid')
+        ?? member.getAttribute('chid')
+        ?? member.querySelector('.avatar img')?.getAttribute('title');
+    return resolveCharacter(ref);
 }
 
 function injectGroupControls() {
@@ -310,8 +333,10 @@ function injectGroupControls() {
     let injected = 0;
     if (!members.length) return { members: 0, injected: 0 };
 
-    // Per-group default row (once) — pin it above the first member row
+    // Per-group default row — pin it above the first member row
     const listContainer = members[0].parentElement;
+    const existingDefault = document.querySelector('.mmc-group-default');
+    if (existingDefault && !liveControls.has(existingDefault)) existingDefault.remove();
     if (listContainer && !document.querySelector('.mmc-group-default')) {
         const gid = ctx().groupId;
         const row = document.createElement('div');
@@ -322,6 +347,7 @@ function injectGroupControls() {
                 ${buildProfileOptions(gid != null ? settings.groupDefaults[gid] : '')}
             </select>`;
         listContainer.prepend(row);
+        liveControls.add(row);
         row.querySelector('select').addEventListener('change', (e) => {
             e.stopPropagation();
             setGroupDefault(e.target.value);
@@ -329,10 +355,13 @@ function injectGroupControls() {
     }
 
     members.forEach((member) => {
-        if (member.querySelector('.mmc-inline-controls')) return;
+        const existing = member.querySelector('.mmc-inline-controls');
+        if (existing) {
+            if (liveControls.has(existing)) return;   // ours, alive
+            existing.remove();                         // dead popout clone
+        }
 
-        // chid is a character INDEX, not a name (v2 mixed these up)
-        const char = resolveCharacter(member.getAttribute('chid'));
+        const char = memberChar(member);
         if (!char?.avatar) return;
 
         const controls = document.createElement('div');
@@ -343,6 +372,7 @@ function injectGroupControls() {
                 ${buildProfileOptions(settings.characterProfiles[char.avatar] || settings.legacyNameProfiles[char.name] || '')}
             </select>`;
         member.appendChild(controls);
+        liveControls.add(controls);
         injected++;
 
         controls.querySelector('.mmc-play-btn').addEventListener('click', async (e) => {
@@ -418,20 +448,22 @@ function registerSlashCommands() {
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({
         name: 'mmc-inject',
         callback: async () => {
-            const allWithChid = document.querySelectorAll('.group_member[chid]').length;
             const anyMember = document.querySelectorAll('.group_member').length;
+            const withDataChid = document.querySelectorAll('.group_member[data-chid]').length;
+            const inMembersList = document.querySelectorAll('.rm_group_members .group_member, #rm_group_members .group_member').length;
             const result = injectGroupControls();
             const existing = document.querySelectorAll('.mmc-inline-controls').length;
             const msg = [
                 `In group chat: ${isGroupChat() ? 'yes' : 'NO'}`,
-                `.group_member elements: ${anyMember} (${allWithChid} with chid)`,
+                `.group_member total: ${anyMember} (${withDataChid} with data-chid)`,
+                `In current-members list: ${inMembersList}`,
                 `Visible members found: ${result.members}`,
                 `Controls injected now: ${result.injected}`,
                 `Controls present total: ${existing}`,
                 existing > 0 && result.members > 0
                     ? 'Controls exist — if you can\'t see them, it\'s a layout/theme clipping issue.'
-                    : (anyMember > 0 && allWithChid === 0
-                        ? 'Members exist but lack the chid attribute — ST changed its markup; report this!'
+                    : (inMembersList === 0 && anyMember > 0
+                        ? 'Member rows render outside the known containers — markup changed again; report this!'
                         : (anyMember === 0 ? 'No member rows rendered — open the group\'s Current Members list first.' : '')),
             ].filter(Boolean).join('\n');
             toastr.info(escapeHtml(msg).replace(/\n/g, '<br>'), 'MMC Inject', { timeOut: 12000, escapeHtml: false });
