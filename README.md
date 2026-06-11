@@ -1,149 +1,103 @@
 # Multi-Model Chat
 
-A SillyTavern extension that enables using different AI models/APIs for different characters in group chats.
+A SillyTavern extension that lets each character in a group chat speak through
+a different AI model.
 
-## The Problem
+Assign a **Connection Profile** to each character; when that character is
+drafted to speak, the extension switches to their profile automatically before
+generation. Claude for your lead, a fast local model for the bartender NPC,
+GPT for the rival — all in one group chat.
 
-By default, SillyTavern group chats use a single API connection for all characters. This means every character in your group chat speaks using the same model, which limits creative possibilities:
+Born from [community discussion #3785](https://github.com/SillyTavern/SillyTavern/discussions/3785).
 
-- You can't have one character use Claude while another uses GPT
-- You can't assign a cheaper/faster model to simple characters and a smarter model to complex ones  
-- You can't leverage different models' strengths for different character personalities
+## What's new in v3.0
 
-## The Solution
+v3 is a ground-up rewrite focused on the thing v2 struggled with most:
+**reliability**.
 
-Multi-Model Chat lets you assign a **Connection Profile** to each character. When that character is drafted to speak in a group chat, the extension automatically switches to their assigned profile before generation.
-
-## Features
-
-- 🔄 **Automatic Profile Switching**: Seamlessly switches connection profiles when characters speak
-- 🎭 **Per-Character Assignment**: Assign different profiles to different characters
-- 📢 **Optional Notifications**: Get notified when profiles switch (can be disabled)
-- 🔙 **Profile Restoration**: Optionally restore your original profile after leaving a group chat
-- 💾 **Persistent Storage**: Profile assignments are saved in character cards and export with them
+- **Profile detection actually works now.** v2 guessed at API endpoints and
+  settings locations; v3 reads the canonical Connection Manager store. The
+  "Add Profile Manually" workaround is gone because it's no longer needed.
+- **Auto-switch is the primary mode** (on by default for new installs). The
+  v2 handler misread the event SillyTavern sends when drafting a character;
+  v3 resolves it correctly and verifies the profile applied before generation
+  proceeds. Set it and forget it — the original request, finally honored.
+- **"Restore original profile" works.** (v2 advertised it; it was never wired.)
+- **Assignments survive renames.** Stored by character file rather than
+  display name, with exact matching only. Your v2 assignments migrate
+  automatically on first load.
+- **New: per-group default profile.** Precedence is
+  *character assignment → group default → global fallback*.
+- Lighter on your browser: the page-wide DOM observer is gone.
 
 ## Prerequisites
 
-- SillyTavern 1.12.6 or later
-- **Connection Profiles** extension enabled (built-in since 1.12.6)
+- SillyTavern 1.12.6+ with the built-in **Connection Profiles** feature
 - At least 2 connection profiles configured
+  (API Connections → Connection Profiles → Save)
 
 ## Installation
 
-### Via SillyTavern Extension Installer (Recommended)
+**Extension installer (recommended):** Extensions → Install Extension → paste
+this repository's URL → Install → refresh.
 
-1. Open SillyTavern
-2. Go to **Extensions** → **Install Extension**
-3. Paste this repository URL: `https://github.com/SinnerConsort/st-multi-model-chat`
-4. Click **Install**
-5. Refresh the page
+**Manual:** drop this folder into
+`data/<user>/extensions/multi-model-chat` and restart ST.
 
-### Manual Installation
+## Usage
 
-1. Navigate to your SillyTavern installation's `data/<user>/extensions` folder
-2. Clone or download this repository into a folder named `multi-model-chat`
-3. Restart SillyTavern
+1. Open a **group chat** and its member list.
+2. Each member now has a **profile dropdown** and a **▶ button**.
+   A dashed **"MMC group default"** row at the top sets the profile for
+   unassigned members of this group.
+3. Pick profiles. Done — with auto-switch on, characters speak through their
+   assigned model from now on.
+4. The **▶ button** manually switches to that character's profile and
+   triggers them to speak (useful with auto-mode off, or to force a turn).
 
-## Setup
+### Slash commands
 
-### Step 1: Create Connection Profiles
+| Command | What it does |
+|---|---|
+| `/mmc-go Name` | Switch to Name's profile and trigger them |
+| `/mmc-assign char="Name" Profile` | Assign a profile (empty profile clears) |
+| `/mmc-debug` | Show detected profiles and current assignments |
 
-Before using this extension, you need connection profiles configured:
+### Settings (Extensions → Multi-Model Chat)
 
-1. Go to **API Connections** (plug icon)
-2. Configure your first API/model combination
-3. In the **Connection Profiles** section, click **Save** and name it (e.g., "Claude-Sonnet")
-4. Repeat for each API/model you want to use (e.g., "GPT-4", "Local-Llama", etc.)
-
-### Step 2: Assign Profiles to Characters
-
-1. Open a character's settings
-2. Click **Advanced Definitions**
-3. Find the **Multi-Model Chat** section
-4. Select a connection profile from the dropdown
-5. The profile is saved automatically
-
-### Step 3: Use in Group Chat
-
-1. Create or open a group chat with characters that have profiles assigned
-2. Chat normally - the extension handles profile switching automatically
-3. Watch the notifications (if enabled) to see when profiles switch
-
-## Settings
-
-Access settings via **Extensions** → **Multi-Model Chat**:
-
-| Setting | Description |
-|---------|-------------|
-| **Enable profile switching** | Master toggle for the extension |
-| **Show notifications** | Display toasts when profiles switch |
-| **Restore original profile** | Return to your previous profile after leaving a group chat |
-
-## How It Works
-
-1. When you're in a group chat, SillyTavern selects which character will speak next
-2. The extension listens for the `GROUP_MEMBER_DRAFTED` event
-3. It checks if that character has an assigned connection profile
-4. If yes, it executes `/profile [name]` to switch before generation begins
-5. The character's response is generated using their assigned API/model
-
-## Tips & Best Practices
-
-### Profile Naming
-Name your profiles descriptively so they're easy to assign:
-- `Claude-Opus-Creative`
-- `GPT4-Analytical`  
-- `Local-Fast`
-
-### Strategic Assignment
-Consider assigning models based on character needs:
-- **Complex characters**: Use more capable models (Claude Opus, GPT-4)
-- **Simple NPCs**: Use faster/cheaper models (Haiku, local models)
-- **Specific personalities**: Match model "vibes" to characters
-
-### Mixing API Types
-The extension works across different API types:
-- OpenAI ↔ Anthropic ↔ Local models
-- Just make sure each profile is fully configured with all necessary settings
+| Setting | Meaning |
+|---|---|
+| Enable | Master toggle |
+| Auto-switch | Switch profiles automatically when a character is drafted |
+| Show toast | Brief notification on each switch |
+| Restore original profile | Return to your pre-group profile when leaving a group chat |
+| Global fallback | Profile for characters with no assignment anywhere |
 
 ## Troubleshooting
 
-### Profile doesn't switch
-- Ensure the extension is enabled in settings
-- Verify the character has a profile assigned (check Advanced Definitions)
-- Make sure the profile name exists (use Refresh Profiles button)
+- **No profiles in the dropdowns** → you haven't saved any Connection
+  Profiles yet, or Connection Manager is disabled. Create profiles under
+  API Connections, then hit **Refresh** in MMC settings.
+- **"Profile not found" on switch** → the assigned profile was deleted or
+  renamed. Re-assign.
+- **A character kept an old assignment after migration** → v2 sometimes keyed
+  assignments ambiguously; check `/mmc-debug` for entries marked
+  *(legacy key)* and re-assign them once to upgrade the key.
 
-### "Profile not found" errors
-- The assigned profile may have been deleted
-- Re-assign a valid profile to the character
+## Notes & limitations
 
-### Slow switching
-- Profile switching happens via slash commands which have minimal overhead
-- If you notice delays, they're likely from API connection time, not the extension
-
-## Known Limitations
-
-- Works only in **group chats** (solo chats don't need this)
-- Requires **Chat Completion** API profiles (Text Completion may have issues)
-- Profile switching is visible in the UI (Connection Profiles section updates)
-
-## Contributing
-
-Contributions welcome! This extension was born from [community discussion #3785](https://github.com/SillyTavern/SillyTavern/discussions/3785).
-
-Ideas for improvement:
-- Support for Text Completion APIs
-- Preset switching in addition to profiles
-- Per-group default profiles
-- Profile assignment via World Info
+- Group chats only — solo chats have one speaker, so just switch profiles
+  normally. (Per-character auto-profiles in solo chats may come later.)
+- Profiles should be fully configured (API + model + settings); the extension
+  switches profiles, it doesn't fill gaps in them.
+- Mixing Chat Completion and Text Completion profiles works to the extent the
+  profiles themselves are complete.
 
 ## License
 
-AGPL-3.0 - Same as SillyTavern
+AGPL-3.0 — same as SillyTavern.
 
 ## Credits
 
-- SillyTavern team for the excellent extension API
-- Cohee for clarifying the implementation path
-- victoralvelais for initiating the GitHub discussion
-- The ST community for requesting this feature
+- The ST team, and Cohee for clarifying the implementation path
+- victoralvelais for the original discussion, and everyone who +1'd it
